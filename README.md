@@ -1,1 +1,1 @@
-# HNS_SQLPractices
+# 🌸 My MS-SQL Practices Codes & Notes
