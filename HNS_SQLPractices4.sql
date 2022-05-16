@@ -36,8 +36,97 @@ AS PAZAR
 FROM SALEORDERS S
 ORDER BY S.CITY 
 
+--Her ilin en çok satan ilk 5 kategorisi
+--Buna benzer koþullara sahip TOP X durumlarýnda CROSS APPLY düþünülmelidir 
+--Örneðin bir þirketin her bölümündeki en iyi 2 çalýþan
+--Ya da x okulundaki öðrencilerin kütüphaneye giriþ yaptýðý son 2 tarih
+SELECT S.CITY, S1.CATEGORY1, SUM(S1.TOTALSALE) AS TOTALSALE
+FROM SALEORDERS S
+CROSS APPLY(SELECT TOP 5 CATEGORY1, SUM(LINETOTAL) AS TOTALSALE FROM SALEORDERS
+WHERE CITY=S.CITY GROUP BY CATEGORY1 ORDER BY 2 DESC) S1
+GROUP BY S.CITY,S1.CATEGORY1
+ORDER BY S.CITY, SUM(S1.TOTALSALE) DESC
+
+--Her ilin en çok satan 3 kategorisi ve onun 3 alt kategorisi 
+--Yani bir CROSS APLY tablosu oluþturup ordaki bilgileri de kullanarak
+--diðer bir CROSS APPLY kýrýlýmý yoluyla subkategori sorgusu hazýrlayacaðýz
+SELECT S.CITY, S1.CATEGORY1, S2.CATEGORY2, SUM(S1.TOTALSALE) AS TOTALSALE
+FROM SALEORDERS S
+CROSS APPLY(SELECT TOP 3 CATEGORY1, SUM(LINETOTAL) AS TOTALSALE FROM SALEORDERS
+WHERE CITY=S.CITY GROUP BY CATEGORY1 ORDER BY 2 DESC) S1
+CROSS APPLY(SELECT TOP 3 CATEGORY2, SUM(LINETOTAL) AS TOTALSALE FROM SALEORDERS
+WHERE CITY=S.CITY AND CATEGORY1=S1.CATEGORY1 GROUP BY CATEGORY2 ORDER BY 2 DESC) S2
+GROUP BY S.CITY,S1.CATEGORY1,S2.CATEGORY2
+ORDER BY 1,2,4 DESC
+
+-- Cities tablosunun bir kopyasýný oluþturmak
+CREATE TABLE CITIES2 (ID INT IDENTITY (1,1), COUNTRYID INT, CITY VARCHAR(50))
+
+INSERT INTO CITIES2 (COUNTRYID,CITY) SELECT COUNTRYID,CITY FROM CITIES
+
+SELECT * FROM CITIES2
+--// Önemli olan iki tarafýnda tip olarak uyuþmasý, kolon isimlerinin ayný olmasýna 
+--gerek yok.
+
+--Ya da özellikle çok kolonlu tablolar için
+--CITIES -- Script Table As -- Create to - New Edi. diyerek scriptten tablo adýný 
+--deðiþtirip yazmakla uðraþmadan kodu çalýþtýrýp içeriði ayný yeni bir tablo oluþturabiliriz.
+--Tabi verileri tekrar eklemek gerek.
+
+--3. yolda birebir tüm kolon ve tipler aktarýlýr. Tek eksik Primary Key'in ayarlanmasýdýr.
+SELECT * INTO CITIES3 FROM CITIES
+
+--CTRL+H kýsayolu ile seçili kod satýrý içindeki belli harfler ya da iþaretleri
+--hedef harf ya da iþaretle deðiþtirebiliriz
+
+--Ýliþkisel tablolarý kullanarak hangi þehirde ne kadar satýþ yapýldýðý bilgisi
+--JOINLER
+SET STATISTICS IO ON
+SELECT CT.CITY,SUM(OD.TOTALPRICE) AS TOPLAMSATÝS
+FROM ORDERS OD INNER JOIN ADDRESS AD ON OD.ADDRESSID = AD.ID 
+INNER JOIN CITIES CT ON AD.CITYID = CT.ID 
+GROUP BY CT.CITY
+--SubQuery
+SET STATISTICS IO ON
+SELECT *,
+(SELECT SUM(TOTALPRICE) FROM ORDERS WHERE ADDRESSID 
+IN (SELECT ID FROM ADDRESS WHERE CITYID = C.ID))
+FROM CITIES C
+
+--Avantajlý olan hem temiz kod hem de okunan pageden kaynaklý JOIN'lerdir.
+--Kontrol için SET STATISTICS IO ON dan loglar incelenir
+
+--Her markanýn en çok satan CATEGORY1 alaný
+SELECT IT.BRAND, IT.CATEGORY1, SUM(LINETOTAL) AS TOPLAM
+FROM ORDERDETAILS OD INNER JOIN ITEMS IT ON OD.ITEMID = IT.ID
+GROUP BY IT.BRAND, IT.CATEGORY1
+
+--Her kategorinin en çok satan markasý
+SELECT IT.CATEGORY1,IT.BRAND, SUM(LINETOTAL) AS TOPLAM
+FROM ORDERDETAILS OD INNER JOIN ITEMS IT ON OD.ITEMID = IT.ID
+GROUP BY IT.CATEGORY1, IT.BRAND
+ORDER BY CATEGORY1
+
+--Her ürün min,max ve ortalama ne kadar fiyattan satýlmýþ, kaç kez ve kaç adet satýlmýþ
+SELECT IT.BRAND, IT.CATEGORY1, OD.ITEMID, IT.ITEMNAME, COUNT(OD.ITEMID) AS SALECOUNT, 
+SUM(OD.AMOUNT) AS SALEAMOUNT, MIN(OD.UNITPRICE) AS MINPRICE, 
+MAX(OD.UNITPRICE) AS MAXPRICE, AVG(OD.UNITPRICE) AS AVGPRICE
+FROM ORDERDETAILS OD INNER JOIN ITEMS IT ON OD.ITEMID = IT.ID
+GROUP BY IT.BRAND, IT.CATEGORY1, OD.ITEMID, IT.ITEMNAME
+ORDER BY IT.BRAND ASC, OD.ITEMID DESC
+
+--Müþterilerin sistemde kayýtlý kaç adet adresi olduðu ve son adres bilgileri
+SELECT U.ID, U.NAMESURNAME, 
+(SELECT COUNT(*) FROM ADDRESS WHERE USERID= U.ID) AS ADDRESSCOUNT,
+(SELECT ADDRESSTEXT FROM ADDRESS WHERE ID IN
+(SELECT TOP 1 ADDRESSID FROM ORDERS WHERE USERID = U.ID ORDER BY DATE_ DESC)) AS LASTADDRESS
+FROM USERS U 
 
 
-select * from SALEORDERS
 
-SELECT * FROM SALEORDERS
+SELECT * FROM ADDRESS
+SELECT * FROM USERS
+SELECT * FROM INVOICES
+SELECT * FROM ORDERDETAILS
+SELECT * FROM CITIES
+SELECT * FROM ORDERS
